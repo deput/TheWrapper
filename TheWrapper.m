@@ -23,14 +23,14 @@ static id WrapperFunction(id zelf, SEL _cmd, ...);
 @property (nonatomic, copy) void (^preRunBlock)(id<NSObject> zelf, NSArray* args);
 @property (nonatomic, copy) id (^postRunBlock)(id<NSObject> zelf, id returnValue, NSArray* args);
 @property (nonatomic, assign) IMP originalImplementation;
-@property (nonatomic, assign) Method originalMethod;
+@property (nonatomic, assign) BOOL isClassMethod;
 @end
 
 @implementation WrappedFunctionData {
     void (^_preRunBlock)(id<NSObject> zelf, NSArray* args);
     id (^_postRunBlock)(id<NSObject> zelf, id returnValue, NSArray* args);
     IMP _originalImplementation;
-    Method _originalMethod;
+    BOOL _isClassMethod;
 }
 
 @synthesize preRunBlock = _preRunBlock, postRunBlock = _postRunBlock, originalImplementation = _originalImplementation;
@@ -74,9 +74,10 @@ static NSMutableDictionary* _wrappedFunctions;
 +(void) addWrappertoClass:(Class) clazz andSelector:(SEL) selector withPreRunBlock:(void (^)(id<NSObject> zelf, NSArray* args)) preRunblock andPostRunBlock:(id (^)(id<NSObject> zelf, id functionReturnValue, NSArray* args)) postRunBlock {
     
     Method originalMethod = class_getInstanceMethod(clazz, selector);
-    
+    BOOL isClassMethod = NO;
     if(originalMethod == nil) {
         originalMethod = class_getClassMethod(clazz, selector);
+        isClassMethod = YES;
     }
     
     IMP originaImplementation = method_getImplementation(originalMethod);
@@ -88,21 +89,19 @@ static NSMutableDictionary* _wrappedFunctions;
     if(isAlreadyWrapped) {
         wrappedFunctionData.preRunBlock = preRunblock;
         wrappedFunctionData.postRunBlock = postRunBlock;
-    }
-    else {
+    }else {
         wrappedFunctionData = [[WrappedFunctionData alloc] initWithOriginalImplementation:originaImplementation andPreRunBlock:preRunblock andPostRunBlock:postRunBlock];
         [_wrappedFunctions setObject:wrappedFunctionData forKey:[TheWrapper getStoredKeyForClass:clazz andSelector:selector]];
     }
     
-    if(class_addMethod(clazz, selector, (IMP)WrapperFunction, method_getTypeEncoding(originalMethod))) {
+    SEL newSelector = NSSelectorFromString([@"_wrapper_" stringByAppendingString:NSStringFromSelector(selector)]);
+    Class opClz = isClassMethod ? objc_getMetaClass(object_getClassName(clazz)) : clazz;
+    if(class_addMethod(opClz, selector, (IMP)WrapperFunction, method_getTypeEncoding(originalMethod))) {
         method_setImplementation(originalMethod, (IMP)WrapperFunction);
     }else {
-        class_replaceMethod(clazz, selector, (IMP)WrapperFunction, method_getTypeEncoding(originalMethod));
+        class_replaceMethod(opClz, selector, (IMP)WrapperFunction, method_getTypeEncoding(originalMethod));
     }
-    
-    SEL newSelector = NSSelectorFromString([@"_wrapper_" stringByAppendingString:NSStringFromSelector(selector)]);
-    class_addMethod(clazz, newSelector, (IMP)originaImplementation, method_getTypeEncoding(originalMethod));
-
+    class_addMethod(opClz, newSelector, (IMP)originaImplementation, method_getTypeEncoding(originalMethod));
 }
 
 +(void) removeWrapperFrom:(id<NSObject>) target andSelector:(SEL) selector {
@@ -148,7 +147,21 @@ id WrapperFunction(id zelf, SEL _cmd, ...)
         
         
         SEL newSelector = NSSelectorFromString([@"_wrapper_" stringByAppendingString:NSStringFromSelector(_cmd)]);
-        NSInvocation* invocation = [NSInvocation invocationWithMethodSignature:[[zelf class] instanceMethodSignatureForSelector:newSelector]];
+        
+        Method originalMethod = class_getInstanceMethod([zelf class], _cmd);
+        BOOL isClassMethod = NO;
+        if(originalMethod == nil) {
+            originalMethod = class_getClassMethod([zelf class], _cmd);
+            isClassMethod = YES;
+        }
+
+        NSInvocation* invocation = nil;
+        if (isClassMethod) {
+            invocation = [NSInvocation invocationWithMethodSignature:[[zelf class] methodSignatureForSelector:newSelector]];
+        }else{
+            invocation = [NSInvocation invocationWithMethodSignature:[[zelf class] instanceMethodSignatureForSelector:newSelector]];
+        }
+        
         invocation.selector = newSelector;
         NSUInteger argsCount = invocation.methodSignature.numberOfArguments - 2;
         
@@ -161,7 +174,6 @@ id WrapperFunction(id zelf, SEL _cmd, ...)
         
         //before run
         BLOCK_SAFE_RUN(wrappedFunctionData.preRunBlock, zelf, [argsArray copy]);
-        
         
         for(NSUInteger i = 0; i < argsCount ; ++i){
             id obj = [argsArray objectAtIndex:i];
