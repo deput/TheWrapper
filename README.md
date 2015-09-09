@@ -22,11 +22,11 @@ Just add the following code before the first call to the function.
 #import "TheWrapper.h"
 
 +(void) initialize {
-    [TheWrapper addWrappertoClass:[MyClass class] andSelector:@selector(foo) withPreRunBlock:^(id<NSObject> zelf, id firstArg, ...) {
+    [TheWrapper addWrappertoClass:[MyClass class] andSelector:@selector(foo) withPreRunBlock:^(id<NSObject> zelf, NSArray* args) {
     {
         NSLog(@"Hi,");
     }
-    andPostRunBlock:^id(id<NSObject> zelf, id functionReturnValue, id firstArg, ...) {
+    andPostRunBlock:^id(id<NSObject> zelf, id functionReturnValue, NSArray* args) {
     {
         NSLog(@"Bye.");
     }];
