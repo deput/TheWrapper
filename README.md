@@ -50,6 +50,5 @@ If you wish to return the original return value, just return it from the `PostRu
 
 ##Known issues
 
-~~1. No arc support~~
-
+1. ~~No arc support~~
 2. Wrapping a method that is only implemented in superclass results in a EXC_BAD_ACCESS.
