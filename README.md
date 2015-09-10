@@ -29,6 +29,7 @@ Just add the following code before the first call to the function.
     andPostRunBlock:^id(id<NSObject> zelf, id functionReturnValue, NSArray* args) {
     {
         NSLog(@"Bye.");
+        return functionReturnValue;
     }];
 }
 ```
@@ -42,6 +43,7 @@ Now, calling foo will print
 //Bye,
 ```
 
+The original function's input arguments is `args`.
 The original function's return value is accessible to the `PostRunBlock` via the `functionReturnValue` parameter.
 If you wish to return the original return value, just return it from the `PostRunBlock`.
 
@@ -49,6 +51,9 @@ If you wish to return the original return value, just return it from the `PostRu
 [NanoProfiler](https://github.com/tomersh/NanoProfiler) is the first public usage of theWrapper. 
 
 ##Known issues
-
 1. ~~No arc support~~
 2. Wrapping a method that is only implemented in superclass results in a EXC_BAD_ACCESS.
+
+##Record
+1. Support arc.
+2. Fix class method issue.
